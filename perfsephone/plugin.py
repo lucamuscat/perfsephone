@@ -5,6 +5,7 @@ The perfsephone plugin aims to help developers profile their tests by ultimately
 
 import inspect
 import json
+import logging
 import threading
 from contextlib import contextmanager
 from dataclasses import asdict
@@ -39,6 +40,7 @@ from perfsephone import (
 from perfsephone.perfetto_renderer import render
 
 PERFETTO_ARG_NAME: Final[str] = "perfetto_path"
+logger = logging.getLogger(__name__)
 
 
 class ThreadProfiler:
@@ -120,10 +122,19 @@ class PytestPerfettoPlugin:
 
         threading.settrace(None)  # type: ignore
 
-        profiles_to_render = chain([profile], thread_profiler.profilers.values())
+        profiles_to_render = (
+            profile
+            for profile in chain([profile], thread_profiler.profilers.values())
+            if profile.last_session
+        )
 
         for index, profiler in enumerate(profiles_to_render, start=1):
-            if profiler.last_session:
+            if profiler.is_running:
+                logger.warning(
+                    "There exists a run-away thread which has not been joined after the end of the"
+                    " test.The thread's profiler will be discarded."
+                )
+            elif profiler.last_session:
                 result += render(
                     session=profiler.last_session,
                     start_time=profiler.last_session.start_time,
