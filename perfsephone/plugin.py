@@ -225,8 +225,6 @@ class PytestPerfettoPlugin:
     def pytest_pyfunc_call(self, pyfuncitem: pytest.Function) -> Generator[None, None, None]:
         is_async = inspect.iscoroutinefunction(pyfuncitem.function)
 
-        profiler = ThreadProfiler()
-
         with self.__profile(root_frame_name="call", is_async=is_async) as events:
             yield
 
