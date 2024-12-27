@@ -8,6 +8,7 @@ import json
 import threading
 from contextlib import contextmanager
 from dataclasses import asdict
+from itertools import chain
 from pathlib import Path
 from types import FrameType
 from typing import (
@@ -42,9 +43,8 @@ PERFETTO_ARG_NAME: Final[str] = "perfetto_path"
 
 class ThreadProfiler:
     def __init__(self) -> None:
-        self.run_stack_depth: int = 0
-        self.profiler: pyinstrument.Profiler = pyinstrument.Profiler(async_mode="disabled")
-        # self.end = threading.Event()
+        self.thread_local = threading.local()
+        self.profilers: Dict[int, pyinstrument.Profiler] = {}
 
     def __call__(
         self,
@@ -59,9 +59,12 @@ class ThreadProfiler:
             and frame.f_code.co_name == "run"
             and frame.f_code.co_filename == threading.__file__
         ):
-            if self.run_stack_depth == 0:
-                self.profiler.start()
-            self.run_stack_depth += 1
+            if getattr(self.thread_local, "run_stack_depth", 0) == 0:
+                profiler = pyinstrument.Profiler(async_mode="disabled")
+                self.thread_local.profiler = profiler
+                self.thread_local.run_stack_depth = 0
+                profiler.start()
+            self.thread_local.run_stack_depth += 1
             return self.__call__
 
         if (
@@ -69,11 +72,13 @@ class ThreadProfiler:
             and frame.f_code.co_name == "run"
             and frame.f_code.co_filename == threading.__file__
         ):
-            self.run_stack_depth -= 1
-            if self.run_stack_depth == 0:
-                self.profiler.stop()
-
-        print(event, frame)
+            self.thread_local.run_stack_depth -= 1
+            if self.thread_local.run_stack_depth == 0:
+                assert hasattr(
+                    self.thread_local, "profiler"
+                ), "because a profiler must have been started"
+                self.thread_local.profiler.stop()
+                self.profilers[threading.get_ident()] = self.thread_local.profiler
 
 
 class PytestPerfettoPlugin:
@@ -93,6 +98,17 @@ class PytestPerfettoPlugin:
         result: List[SerializableEvent] = []
         start_event = BeginDurationEvent(name=root_frame_name, cat=Category("test"), args=args)
 
+        thread_profiler = ThreadProfiler()
+
+        # We use `threading.settrace`, as opposed to `threading.setprofile`, as
+        # `pyinstrument.Profiler().start()` calls `threading.setprofile` under the hood, overriding
+        # our profiling function.
+        #
+        # `threading.settrace` & `threading.setprofile` provides a rather convoluted mechanism of
+        # starting a pyinstrument profiler as soon as a thread starts executing its `run()` method,
+        # & stopping said profiler once the `run()` method finishes.
+        threading.settrace(thread_profiler)  # type: ignore
+
         result.append(start_event)
         profiler_async_mode = "enabled" if is_async else "disabled"
         with pyinstrument.Profiler(async_mode=profiler_async_mode) as profile:
@@ -101,8 +117,19 @@ class PytestPerfettoPlugin:
         start_rendering_event = BeginDurationEvent(
             name="[pytest-perfetto] Dumping frames", cat=Category("pytest")
         )
-        if profile.last_session is not None:
-            result += render(profile.last_session, start_time=start_event.ts)
+
+        threading.settrace(None)  # type: ignore
+
+        profiles_to_render = chain([profile], thread_profiler.profilers.values())
+
+        for index, profiler in enumerate(profiles_to_render, start=1):
+            if profiler.last_session:
+                result += render(
+                    session=profiler.last_session,
+                    start_time=profiler.last_session.start_time,
+                    tid=index,
+                )
+
         end_rendering_event = EndDurationEvent()
         result += [end_event, start_rendering_event, end_rendering_event]
 
@@ -200,20 +227,8 @@ class PytestPerfettoPlugin:
 
         profiler = ThreadProfiler()
 
-        # We use `threading.settrace`, as opposed to `threading.setprofile`, as
-        # `pyinstrument.Profiler().start()` calls `threading.setprofile` under the hood, overriding
-        # our profiling function.
-        #
-        # `threading.settrace` & `threading.setprofile` provides a rather convoluted mechanism of
-        # starting a pyinstrument profiler as soon as a thread starts executing its `run()` method,
-        # & stopping said profiler once the `run()` method finishes.
-        threading.settrace(profiler)  # type: ignore
-
         with self.__profile(root_frame_name="call", is_async=is_async) as events:
             yield
-
-        threading.settrace(None)  # type: ignore
-        profiler.profiler.print()
 
         self.events += events
 
