@@ -14,12 +14,10 @@ from pyinstrument.renderers.speedscope import (
 from pyinstrument.session import Session
 
 from perfsephone import (
-    BeginDurationEvent,
     Category,
-    EndDurationEvent,
-    SerializableEvent,
     Timestamp,
 )
+from perfsephone.trace_store import ChromeTraceEventFormatJSONStore, TraceStore
 
 BLACKLISTED_MODULES = [pytest, pluggy, _pytest]
 
@@ -68,17 +66,17 @@ def remove_pytest_related_frames(root_frame: Frame) -> Sequence[Frame]:
     return [root_frame]
 
 
-def render(session: Session, start_time: float, tid: int = 1) -> List[SerializableEvent]:
+def render(session: Session, start_time: float, tid: int = 1) -> TraceStore:
     renderer = SpeedscopeRenderer()
     root_frame = session.root_frame()
     if root_frame is None:
-        return []
+        return ChromeTraceEventFormatJSONStore()
 
-    perfetto_events: List[SerializableEvent] = []
+    perfetto_events: TraceStore = ChromeTraceEventFormatJSONStore()
     new_roots: List[Frame] = list(remove_pytest_related_frames(root_frame))
 
-    def render_root_frame(root_frame: Frame) -> List[SerializableEvent]:
-        result: List[SerializableEvent] = []
+    def render_root_frame(root_frame: Frame) -> TraceStore:
+        result: TraceStore = ChromeTraceEventFormatJSONStore()
         events: List[SpeedscopeEvent] = renderer.render_frame(root_frame)
 
         inverted_speedscope_index: Dict[int, SpeedscopeFrame] = {
@@ -97,23 +95,22 @@ def render(session: Session, start_time: float, tid: int = 1) -> List[Serializab
                 speedscope_event.type == SpeedscopeEventType.OPEN
                 and name not in SYNTHETIC_LEAF_IDENTIFIERS
             ):
-                result.append(
-                    BeginDurationEvent(
-                        name=name or "nothing",
-                        cat=Category("runtime"),
-                        ts=timestamp,
-                        args={"file": file or "", "line": str(line or 0), "name": name or ""},
-                        tid=tid,
-                    )
+                result.add_begin_event(
+                    name=name or "nothing",
+                    category=Category("runtime"),
+                    timestamp=timestamp,
+                    args={"file": file or "", "line": str(line or 0), "name": name or ""},
+                    tid=tid,
                 )
+
             elif (
                 speedscope_event.type == SpeedscopeEventType.CLOSE
                 and name not in SYNTHETIC_LEAF_IDENTIFIERS
             ):
-                result.append(EndDurationEvent(ts=timestamp, tid=tid))
+                result.add_end_event(timestamp=timestamp, tid=tid)
         return result
 
     for root in new_roots:
-        perfetto_events += render_root_frame(root)
+        perfetto_events.merge(render_root_frame(root))
 
     return perfetto_events

@@ -4,16 +4,13 @@ The perfsephone plugin aims to help developers profile their tests by ultimately
 """
 
 import inspect
-import json
 import logging
-from dataclasses import asdict
 from pathlib import Path
 from typing import (
     Any,
     Dict,
     Final,
     Generator,
-    List,
     Optional,
     Sequence,
     Tuple,
@@ -24,14 +21,12 @@ import pytest
 from _pytest.config import Notset
 
 from perfsephone import (
-    BeginDurationEvent,
     Category,
-    EndDurationEvent,
-    InstantEvent,
-    SerializableEvent,
+    InstantScope,
     Timestamp,
 )
 from perfsephone.profiler import Profiler
+from perfsephone.trace_store import ChromeTraceEventFormatJSONStore, TraceStore
 
 PERFETTO_ARG_NAME: Final[str] = "perfetto_path"
 logger = logging.getLogger(__name__)
@@ -39,54 +34,37 @@ logger = logging.getLogger(__name__)
 
 class PytestPerfettoPlugin:
     def __init__(self) -> None:
-        self.events: List[SerializableEvent] = []
+        self.events: TraceStore = ChromeTraceEventFormatJSONStore()
         self.profiler: Profiler = Profiler()
 
     @pytest.hookimpl(hookwrapper=True)
     def pytest_sessionstart(self) -> Generator[None, None, None]:
         # Called after the `Session` object has been created and before performing collection and
         # entering the run test loop.
-        self.events.append(
-            BeginDurationEvent(
-                name="pytest session",
-                cat=Category("pytest"),
-            )
-        )
+        self.events.add_begin_event(name="pytest session", category=Category("pytest"), args={})
         yield
 
     @pytest.hookimpl(hookwrapper=True)
     def pytest_sessionfinish(self, session: pytest.Session) -> Generator[None, None, None]:
         # Called after whole test run finished, right before returning the exit status to the system
         # https://docs.pytest.org/en/7.1.x/reference/reference.html#pytest.hookspec.pytest_sessionfinish
-        self.events.append(EndDurationEvent())
+        self.events.add_end_event()
         perfetto_path: Union[Path, Notset] = session.config.getoption("perfetto_path")
         if isinstance(perfetto_path, Path):
-            with perfetto_path.open("w") as file:
-                result = [asdict(event) for event in self.events]
-                for event in result:
-                    # Python's time.time() produces timestamps using a seconds as its granularity,
-                    # whilst perfetto uses a miceosecond granularity.
-                    event["ts"] /= 1e-6
-
-                json.dump(result, file)
+            self.events.dump(path=perfetto_path)
         yield
 
     @pytest.hookimpl(hookwrapper=True)
     def pytest_collection(self) -> Generator[None, None, None]:
-        self.events.append(
-            BeginDurationEvent(
-                name="Start Collection",
-                cat=Category("pytest"),
-            )
-        )
+        self.events.add_begin_event(name="Start Collection", category=Category("pytest"), args={})
         yield
 
     def pytest_itemcollected(self, item: pytest.Item) -> None:
-        self.events.append(InstantEvent(name=f"[Item Collected] {item.nodeid}"))
+        self.events.add_instant_event(name=f"[Item Collected] {item.nodeid}", scope=InstantScope.t)
 
     @pytest.hookimpl(hookwrapper=True)
     def pytest_collection_finish(self) -> Generator[None, None, None]:
-        self.events.append(EndDurationEvent())
+        self.events.add_end_event()
         yield
 
     # ===== Test running (runtest) hooks =====
@@ -110,25 +88,24 @@ class PytestPerfettoPlugin:
     def pytest_runtest_logstart(
         self, nodeid: str, location: Tuple[str, Optional[int], str]
     ) -> None:
-        self.events.append(
-            BeginDurationEvent(
-                name=nodeid,
-                args=PytestPerfettoPlugin.create_args_from_location(location),
-                cat=Category("test"),
-            )
+        self.events.add_begin_event(
+            name=nodeid,
+            args=PytestPerfettoPlugin.create_args_from_location(location),
+            category=Category("test"),
         )
 
     def pytest_runtest_logfinish(self) -> None:
-        self.events.append(EndDurationEvent())
+        self.events.add_end_event()
 
     def pytest_runtest_logreport(self, report: pytest.TestReport) -> None:
         if report.when is None or report.when == "call":
             return
 
-        self.events.append(
-            BeginDurationEvent(name=report.when, cat=Category("test"), ts=Timestamp(report.start))
+        self.events.add_begin_event(
+            name=report.when, category=Category("test"), timestamp=Timestamp(report.start), args={}
         )
-        self.events.append(EndDurationEvent(ts=Timestamp(report.stop)))
+
+        self.events.add_end_event(timestamp=Timestamp(report.stop))
 
     @pytest.hookimpl(hookwrapper=True)
     def pytest_pyfunc_call(self, pyfuncitem: pytest.Function) -> Generator[None, None, None]:
@@ -137,13 +114,13 @@ class PytestPerfettoPlugin:
         with self.profiler(root_frame_name="call", is_async=is_async) as events:
             yield
 
-        self.events += events
+        self.events.merge(events)
 
     @pytest.hookimpl(hookwrapper=True, tryfirst=True)
     def pytest_runtest_makereport(self) -> Generator[None, None, None]:
-        self.events.append(BeginDurationEvent(name="pytest make report", cat=Category("pytest")))
+        self.events.add_begin_event(name="pytest make report", category=Category("pytest"), args={})
         yield
-        self.events.append(EndDurationEvent())
+        self.events.add_end_event()
 
     # ===== Reporting hooks =====
     @pytest.hookimpl(hookwrapper=True)
@@ -162,7 +139,7 @@ class PytestPerfettoPlugin:
         with self.profiler(root_frame_name=fixturedef.argname, args=args, is_async=True) as events:
             yield
 
-        self.events += events
+        self.events.merge(events)
 
 
 # ===== Initialization hooks =====
