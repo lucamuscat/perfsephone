@@ -56,11 +56,11 @@ class ThreadProfiler:
     ) -> Any:
         frame.f_trace_lines = False
 
-        if (
-            event == "call"
-            and frame.f_code.co_name == "run"
-            and frame.f_code.co_filename == threading.__file__
-        ):
+        is_frame_from_thread_run: bool = (
+            frame.f_code.co_name == "run" and frame.f_code.co_filename == threading.__file__
+        )
+
+        if event == "call" and is_frame_from_thread_run:
             if getattr(self.thread_local, "run_stack_depth", 0) == 0:
                 profiler = pyinstrument.Profiler(async_mode="disabled")
                 self.thread_local.profiler = profiler
@@ -69,11 +69,7 @@ class ThreadProfiler:
             self.thread_local.run_stack_depth += 1
             return self.__call__
 
-        if (
-            event == "return"
-            and frame.f_code.co_name == "run"
-            and frame.f_code.co_filename == threading.__file__
-        ):
+        if event == "return" and is_frame_from_thread_run:
             self.thread_local.run_stack_depth -= 1
             if self.thread_local.run_stack_depth == 0:
                 assert hasattr(
