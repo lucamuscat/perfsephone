@@ -68,7 +68,7 @@ def remove_pytest_related_frames(root_frame: Frame) -> Sequence[Frame]:
     return [root_frame]
 
 
-def render(session: Session, start_time: float) -> List[SerializableEvent]:
+def render(session: Session, start_time: float, tid: int = 1) -> List[SerializableEvent]:
     renderer = SpeedscopeRenderer()
     root_frame = session.root_frame()
     if root_frame is None:
@@ -103,13 +103,14 @@ def render(session: Session, start_time: float) -> List[SerializableEvent]:
                         cat=Category("runtime"),
                         ts=timestamp,
                         args={"file": file or "", "line": str(line or 0), "name": name or ""},
+                        tid=tid,
                     )
                 )
             elif (
                 speedscope_event.type == SpeedscopeEventType.CLOSE
                 and name not in SYNTHETIC_LEAF_IDENTIFIERS
             ):
-                result.append(EndDurationEvent(ts=timestamp))
+                result.append(EndDurationEvent(ts=timestamp, tid=tid))
         return result
 
     for root in new_roots:
