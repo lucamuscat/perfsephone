@@ -3,12 +3,13 @@ import threading
 from contextlib import contextmanager
 from itertools import chain
 from types import FrameType
-from typing import Any, Dict, Generator, List, Literal, Optional, Sequence, Union
+from typing import Any, Dict, Generator, Literal, Optional, Sequence, Union
 
 import pyinstrument
 
-from perfsephone import BeginDurationEvent, Category, EndDurationEvent, SerializableEvent
+from perfsephone import Category
 from perfsephone.perfetto_renderer import render
+from perfsephone.trace_store import ChromeTraceEventFormatJSONStore, TraceStore
 
 logger = logging.getLogger(__name__)
 
@@ -65,12 +66,11 @@ class Profiler:
         root_frame_name: str,
         is_async: bool,
         args: Optional[Dict[str, Union[str, Sequence[str]]]] = None,
-    ) -> Generator[List[SerializableEvent], None, None]:
+    ) -> Generator[TraceStore, None, None]:
         if args is None:
             args = {}
 
-        result: List[SerializableEvent] = []
-        start_event = BeginDurationEvent(name=root_frame_name, cat=Category("test"), args=args)
+        result: TraceStore = ChromeTraceEventFormatJSONStore()
 
         thread_profiler = _ThreadProfiler()
 
@@ -83,15 +83,21 @@ class Profiler:
         # & stopping said profiler once the `run()` method finishes.
         threading.settrace(thread_profiler)  # type: ignore
 
-        result.append(start_event)
+        result.add_begin_event(
+            name=root_frame_name,
+            category=Category("test"),
+            args=args,
+        )
+
         profiler_async_mode = "enabled" if is_async else "disabled"
         with pyinstrument.Profiler(async_mode=profiler_async_mode) as profile:
             yield result
-        end_event = EndDurationEvent()
-        start_rendering_event = BeginDurationEvent(
-            name="[pytest-perfetto] Dumping frames", cat=Category("pytest")
-        )
 
+        result.add_end_event()
+
+        result.add_begin_event(
+            name="[pytest-perfetto] Dumping frames", category=Category("pytest"), args={}
+        )
         threading.settrace(None)  # type: ignore
 
         profiles_to_render = (
@@ -107,11 +113,12 @@ class Profiler:
                     " test.The thread's profiler will be discarded."
                 )
             elif profiler.last_session:
-                result += render(
-                    session=profiler.last_session,
-                    start_time=profiler.last_session.start_time,
-                    tid=index,
+                result.merge(
+                    render(
+                        session=profiler.last_session,
+                        start_time=profiler.last_session.start_time,
+                        tid=index,
+                    )
                 )
 
-        end_rendering_event = EndDurationEvent()
-        result += [end_event, start_rendering_event, end_rendering_event]
+        result.add_end_event()
