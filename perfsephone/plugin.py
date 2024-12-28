@@ -54,23 +54,31 @@ class ThreadProfiler:
         event: Literal["call", "line", "return", "exception", "opcode"],
         _args: Any,
     ) -> Any:
+        """This method should only be used with `threading.settrace()`."""
         frame.f_trace_lines = False
 
         is_frame_from_thread_run: bool = (
             frame.f_code.co_name == "run" and frame.f_code.co_filename == threading.__file__
         )
 
+        # Detect when `Thread.run()` is called
         if event == "call" and is_frame_from_thread_run:
+            # If this is the first time `Thread.run()` is being called on this thread, start the
+            # profiler.
             if getattr(self.thread_local, "run_stack_depth", 0) == 0:
                 profiler = pyinstrument.Profiler(async_mode="disabled")
                 self.thread_local.profiler = profiler
                 self.thread_local.run_stack_depth = 0
                 profiler.start()
+            # Keep track of the number of active calls of `Thread.run()`.
             self.thread_local.run_stack_depth += 1
             return self.__call__
 
+        # Detect when `Threading.run()` returns.
         if event == "return" and is_frame_from_thread_run:
             self.thread_local.run_stack_depth -= 1
+            # When there are no more active invocations of `Thread.run()`, this implies that the
+            # target of the thread being profiled has finished executing.
             if self.thread_local.run_stack_depth == 0:
                 assert hasattr(
                     self.thread_local, "profiler"
