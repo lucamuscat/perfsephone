@@ -28,7 +28,7 @@ class TraceStore(ABC):
         timestamp: Optional[Timestamp] = None,
         pid: int = 1,
         tid: int = 1,
-        args: Dict[str, Union[str, Sequence[str]]],
+        args: Optional[Dict[str, Union[str, Sequence[str]]]] = None,
     ) -> None:
         raise NotImplementedError
 
@@ -71,10 +71,13 @@ class ChromeTraceEventFormatJSONStore(TraceStore):
         timestamp: Optional[Timestamp] = None,
         pid: int = 1,
         tid: int = 1,
-        args: Dict[str, Union[str, Sequence[str]]],
+        args: Optional[Dict[str, Union[str, Sequence[str]]]] = None,
     ) -> None:
         if timestamp is None:
             timestamp = Timestamp(time.time())
+
+        if args is None:
+            args = {}
 
         self.events.append(
             BeginDurationEvent(name=name, cat=category, ts=timestamp, pid=pid, tid=tid, args=args)

@@ -41,7 +41,10 @@ class PytestPerfettoPlugin:
     def pytest_sessionstart(self) -> Generator[None, None, None]:
         # Called after the `Session` object has been created and before performing collection and
         # entering the run test loop.
-        self.events.add_begin_event(name="pytest session", category=Category("pytest"), args={})
+        self.events.add_begin_event(
+            name="pytest session",
+            category=Category("pytest"),
+        )
         yield
 
     @pytest.hookimpl(hookwrapper=True)
@@ -56,7 +59,10 @@ class PytestPerfettoPlugin:
 
     @pytest.hookimpl(hookwrapper=True)
     def pytest_collection(self) -> Generator[None, None, None]:
-        self.events.add_begin_event(name="Start Collection", category=Category("pytest"), args={})
+        self.events.add_begin_event(
+            name="Start Collection",
+            category=Category("pytest"),
+        )
         yield
 
     def pytest_itemcollected(self, item: pytest.Item) -> None:
@@ -102,7 +108,9 @@ class PytestPerfettoPlugin:
             return
 
         self.events.add_begin_event(
-            name=report.when, category=Category("test"), timestamp=Timestamp(report.start), args={}
+            name=report.when,
+            category=Category("test"),
+            timestamp=Timestamp(report.start),
         )
 
         self.events.add_end_event(timestamp=Timestamp(report.stop))
@@ -118,7 +126,10 @@ class PytestPerfettoPlugin:
 
     @pytest.hookimpl(hookwrapper=True, tryfirst=True)
     def pytest_runtest_makereport(self) -> Generator[None, None, None]:
-        self.events.add_begin_event(name="pytest make report", category=Category("pytest"), args={})
+        self.events.add_begin_event(
+            name="pytest make report",
+            category=Category("pytest"),
+        )
         yield
         self.events.add_end_event()
 

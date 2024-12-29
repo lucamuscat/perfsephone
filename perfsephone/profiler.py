@@ -96,7 +96,8 @@ class Profiler:
         result.add_end_event()
 
         result.add_begin_event(
-            name="[pytest-perfetto] Dumping frames", category=Category("pytest"), args={}
+            name="[pytest-perfetto] Dumping frames",
+            category=Category("pytest"),
         )
         threading.settrace(None)  # type: ignore
 
