@@ -3,7 +3,7 @@ import threading
 from contextlib import contextmanager
 from itertools import chain
 from types import FrameType
-from typing import Any, Dict, Generator, Literal, Optional, Sequence, Union
+from typing import Any, Dict, Generator, List, Literal, Optional, Sequence, Union
 
 import pyinstrument
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class _ThreadProfiler:
     def __init__(self) -> None:
         self.thread_local = threading.local()
-        self.profilers: Dict[int, pyinstrument.Profiler] = {}
+        self.profilers: List[pyinstrument.Profiler] = []
 
     def __call__(
         self,
@@ -55,7 +55,7 @@ class _ThreadProfiler:
                     self.thread_local, "profiler"
                 ), "because a profiler must have been started"
                 self.thread_local.profiler.stop()
-                self.profilers[threading.get_ident()] = self.thread_local.profiler
+                self.profilers.append(self.thread_local.profiler)
 
 
 class Profiler:
@@ -103,7 +103,7 @@ class Profiler:
 
         profiles_to_render = (
             profile
-            for profile in chain([profile], thread_profiler.profilers.values())
+            for profile in chain([profile], thread_profiler.profilers)
             if profile.last_session
         )
 
