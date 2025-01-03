@@ -75,3 +75,59 @@ def test_given_multiple_threads__then_multiple_distinct_tids_are_reported(
         )
         == EXPECTED_DISTINCT_TID_COUNT
     )
+
+
+def test_given_thread_created_in_setup__then_thread_is_recorded_and_not_ignored(
+    pytester: pytest.Pytester, temp_perfetto_file_path: Path
+) -> None:
+    pytester.makepyfile("""
+        from pytest import fixture
+
+        from typing import Generator
+        from concurrent.futures import ThreadPoolExecutor
+        from time import sleep
+
+        def foo() -> None:
+            sleep(0.005)
+
+
+        def bar() -> None:
+            sleep(0.005)
+
+
+        def quix() -> None:
+            sleep(0.005)
+
+
+        @fixture(scope="session")
+        def pool() -> Generator[ThreadPoolExecutor, None, None]:
+            with ThreadPoolExecutor() as pool:
+                yield pool
+
+
+        def test_hello(pool: ThreadPoolExecutor) -> None:
+            pool.submit(foo).result()
+
+
+        def test_hello2(pool: ThreadPoolExecutor) -> None:
+            pool.submit(bar).result()
+
+
+        def test_hello3(pool: ThreadPoolExecutor) -> None:
+            pool.submit(quix).result()
+    """)
+    pytester.runpytest_subprocess(f"--perfetto={temp_perfetto_file_path}").assert_outcomes(passed=3)
+    trace_file = json.load(temp_perfetto_file_path.open("r"))
+
+    EXPECTED_EVENT_COUNT: Final[int] = 3
+    EXPECTED_THREAD_POOL_TID: Final[int] = 2
+
+    events = list(filter(lambda event: event.get("name") in ["foo", "bar", "quix"], trace_file))
+
+    assert (
+        len({event["name"] for event in events}) == EXPECTED_EVENT_COUNT
+    ), "because three functions were executed in the thread pool thread"
+
+    assert all(
+        event["tid"] == EXPECTED_THREAD_POOL_TID for event in events
+    ), "because the thread pool was expected to use the same thread for all submissions"
