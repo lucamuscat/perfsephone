@@ -25,7 +25,8 @@ from perfsephone import (
     InstantScope,
     Timestamp,
 )
-from perfsephone.profiler import Profiler, render
+from perfsephone.perfetto_renderer import render
+from perfsephone.profiler import Profiler
 from perfsephone.trace_store import ChromeTraceEventFormatJSONStore, TraceStore
 
 PERFETTO_ARG_NAME: Final[str] = "perfetto_path"
@@ -54,17 +55,16 @@ class PytestPerfettoPlugin:
         # https://docs.pytest.org/en/7.1.x/reference/reference.html#pytest.hookspec.pytest_sessionfinish
         self.profiler.unregister_thread_profiler()
 
-        for index, profiler in enumerate(
+        for index, profiler_session in enumerate(
             self.profiler.thread_profiler.drain(), start=self.profiler.max_tid + 1
         ):
-            if profiler.last_session:
-                self.events.merge(
-                    render(
-                        profiler.last_session,
-                        start_time=profiler.last_session.start_time,
-                        tid=index,
-                    )
+            self.events.merge(
+                render(
+                    session=profiler_session,
+                    start_time=profiler_session.start_time,
+                    tid=index,
                 )
+            )
 
         self.events.add_end_event()
         perfetto_path: Union[Path, Notset] = session.config.getoption("perfetto_path")

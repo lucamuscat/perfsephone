@@ -6,6 +6,7 @@ from types import FrameType
 from typing import Any, Dict, Generator, List, Literal, Optional, Sequence, Union
 
 import pyinstrument
+import pyinstrument.session
 
 from perfsephone import Category
 from perfsephone.perfetto_renderer import render
@@ -17,9 +18,9 @@ logger = logging.getLogger(__name__)
 class _ThreadProfiler:
     def __init__(self) -> None:
         self.thread_local = threading.local()
-        self.profilers: List[pyinstrument.Profiler] = []
+        self.profilers: List[pyinstrument.session.Session] = []
 
-    def drain(self) -> Generator[pyinstrument.Profiler, None, None]:
+    def drain(self) -> Generator[pyinstrument.session.Session, None, None]:
         while self.profilers:
             yield self.profilers.pop(0)
 
@@ -71,8 +72,7 @@ class _ThreadProfiler:
                 assert hasattr(
                     self.thread_local, "profiler"
                 ), "because a profiler must have been started"
-                self.thread_local.profiler.stop()
-                self.profilers.append(self.thread_local.profiler)
+                self.profilers.append(self.thread_local.profiler.stop())
 
 
 class Profiler:
@@ -118,23 +118,17 @@ class Profiler:
 
         profiles_to_render = (
             profile
-            for profile in chain([profile], self.thread_profiler.drain())
-            if profile.last_session
+            for profile in chain([profile.last_session], self.thread_profiler.drain())
+            if profile is not None
         )
 
-        for index, profiler in enumerate(profiles_to_render, start=1):
+        for index, session in enumerate(profiles_to_render, start=1):
             self.max_tid = max(index, self.max_tid)
-            if profiler.is_running:
-                logger.warning(
-                    "There exists a run-away thread which has not been joined after the end of the"
-                    " test.The thread's profiler will be discarded."
-                )
-                return
-            assert profiler.last_session is not None
+
             result.merge(
                 render(
-                    session=profiler.last_session,
-                    start_time=profiler.last_session.start_time,
+                    session=session,
+                    start_time=session.start_time,
                     tid=index,
                 )
             )
