@@ -19,6 +19,23 @@ class _ThreadProfiler:
         self.thread_local = threading.local()
         self.profilers: List[pyinstrument.Profiler] = []
 
+    def drain(self) -> Generator[pyinstrument.Profiler, None, None]:
+        while self.profilers:
+            yield self.profilers.pop(0)
+
+    def register(self) -> None:
+        # We use `threading.settrace`, as opposed to `threading.setprofile`, as
+        # `pyinstrument.Profiler().start()` calls `threading.setprofile` under the hood, overriding
+        # our profiling function.
+        #
+        # `threading.settrace` & `threading.setprofile` provides a rather convoluted mechanism of
+        # starting a pyinstrument profiler as soon as a thread starts executing its `run()` method,
+        # & stopping said profiler once the `run()` method finishes.
+        threading.settrace(self.__call__)  # type: ignore
+
+    def unregister(self) -> None:
+        threading.settrace(None)  # type: ignore
+
     def __call__(
         self,
         frame: FrameType,
@@ -59,6 +76,16 @@ class _ThreadProfiler:
 
 
 class Profiler:
+    def __init__(self) -> None:
+        self.thread_profiler = _ThreadProfiler()
+        self.max_tid: int = 0
+
+    def register_thread_profiler(self) -> None:
+        self.thread_profiler.register()
+
+    def unregister_thread_profiler(self) -> None:
+        self.thread_profiler.unregister()
+
     @contextmanager
     def __call__(
         self,
@@ -71,17 +98,6 @@ class Profiler:
             args = {}
 
         result: TraceStore = ChromeTraceEventFormatJSONStore()
-
-        thread_profiler = _ThreadProfiler()
-
-        # We use `threading.settrace`, as opposed to `threading.setprofile`, as
-        # `pyinstrument.Profiler().start()` calls `threading.setprofile` under the hood, overriding
-        # our profiling function.
-        #
-        # `threading.settrace` & `threading.setprofile` provides a rather convoluted mechanism of
-        # starting a pyinstrument profiler as soon as a thread starts executing its `run()` method,
-        # & stopping said profiler once the `run()` method finishes.
-        threading.settrace(thread_profiler)  # type: ignore
 
         result.add_begin_event(
             name=root_frame_name,
@@ -99,27 +115,28 @@ class Profiler:
             name="[pytest-perfetto] Dumping frames",
             category=Category("pytest"),
         )
-        threading.settrace(None)  # type: ignore
 
         profiles_to_render = (
             profile
-            for profile in chain([profile], thread_profiler.profilers)
+            for profile in chain([profile], self.thread_profiler.drain())
             if profile.last_session
         )
 
         for index, profiler in enumerate(profiles_to_render, start=1):
+            self.max_tid = max(index, self.max_tid)
             if profiler.is_running:
                 logger.warning(
                     "There exists a run-away thread which has not been joined after the end of the"
                     " test.The thread's profiler will be discarded."
                 )
-            elif profiler.last_session:
-                result.merge(
-                    render(
-                        session=profiler.last_session,
-                        start_time=profiler.last_session.start_time,
-                        tid=index,
-                    )
+                return
+            assert profiler.last_session is not None
+            result.merge(
+                render(
+                    session=profiler.last_session,
+                    start_time=profiler.last_session.start_time,
+                    tid=index,
                 )
+            )
 
         result.add_end_event()
