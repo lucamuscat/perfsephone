@@ -61,7 +61,6 @@ class PytestPerfettoPlugin:
             self.events.merge(
                 render(
                     session=profiler_session,
-                    start_time=profiler_session.start_time,
                     tid=index,
                 )
             )

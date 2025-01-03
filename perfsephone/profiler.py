@@ -128,7 +128,6 @@ class Profiler:
             result.merge(
                 render(
                     session=session,
-                    start_time=session.start_time,
                     tid=index,
                 )
             )

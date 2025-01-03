@@ -66,7 +66,10 @@ def remove_pytest_related_frames(root_frame: Frame) -> Sequence[Frame]:
     return [root_frame]
 
 
-def render(session: Session, start_time: float, tid: int = 1) -> TraceStore:
+def render(session: Session, start_time: Optional[float] = None, tid: int = 1) -> TraceStore:
+    if start_time is None:
+        start_time = session.start_time
+
     renderer = SpeedscopeRenderer()
     root_frame = session.root_frame()
     if root_frame is None:
