@@ -83,8 +83,20 @@ class Profiler:
     def register_thread_profiler(self) -> None:
         self.thread_profiler.register()
 
-    def unregister_thread_profiler(self) -> None:
+    def unregister_thread_profiler(self, trace_store: TraceStore) -> None:
+        """Stop profiling non-main threads. The profile of each thread which has not yet been
+        rendered will be merged in the provided trace store"""
         self.thread_profiler.unregister()
+
+        for index, profiler_session in enumerate(
+            self.thread_profiler.drain(), start=self.max_tid + 1
+        ):
+            trace_store.merge(
+                render(
+                    session=profiler_session,
+                    tid=index,
+                )
+            )
 
     @contextmanager
     def __call__(
