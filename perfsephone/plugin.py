@@ -170,6 +170,10 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 def pytest_configure(config: pytest.Config) -> None:
     option: Union[Path, Notset] = config.getoption(PERFETTO_ARG_NAME)
+
+    if isinstance(option, Notset):
+        return
+
     if isinstance(option, Path) and option.is_dir():
         raise ValueError("The provided path must not be a directory")
     config.pluginmanager.register(PytestPerfettoPlugin())
