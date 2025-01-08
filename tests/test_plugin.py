@@ -16,6 +16,16 @@ def test_given_perfetto_arg_trace_files_are_written(
     assert temp_perfetto_file_path.exists()
 
 
+def test_given_perfetto_arg_with_no_value__then_trace_files_are_written_in_current_dir(
+    pytester: pytest.Pytester,
+) -> None:
+    pytester.makepyfile("""
+        def test_hello(): ...
+    """)
+    pytester.runpytest_subprocess("--perfetto").assert_outcomes(passed=1)
+    assert len(list(Path().glob("perfsephone-*.json"))) == 1
+
+
 def test_given_non_serializable_params__when_dump_trace__then_file_is_written(
     pytester: pytest.Pytester, temp_perfetto_file_path: Path
 ) -> None:
