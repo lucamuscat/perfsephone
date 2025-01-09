@@ -11,7 +11,7 @@ def test_given_perfetto_arg_trace_files_are_written(
     pytester.makepyfile("""
         def test_hello(): ...
     """)
-    result = pytester.runpytest_subprocess(f"--perfetto={temp_perfetto_file_path}")
+    result = pytester.runpytest_inprocess(f"--perfetto={temp_perfetto_file_path}")
     result.assert_outcomes(passed=1)
     assert temp_perfetto_file_path.exists()
 
@@ -22,7 +22,7 @@ def test_given_perfetto_arg_with_no_value__then_trace_files_are_written_in_curre
     pytester.makepyfile("""
         def test_hello(): ...
     """)
-    pytester.runpytest_subprocess("--perfetto").assert_outcomes(passed=1)
+    pytester.runpytest_inprocess("--perfetto").assert_outcomes(passed=1)
     assert len(list(Path().glob("perfsephone-*.json"))) == 1
 
 
@@ -45,7 +45,7 @@ def test_given_non_serializable_params__when_dump_trace__then_file_is_written(
         def test_hello(some_fixture) -> None:
             ...
     """)
-    result = pytester.runpytest_subprocess(f"--perfetto={temp_perfetto_file_path}")
+    result = pytester.runpytest_inprocess(f"--perfetto={temp_perfetto_file_path}")
     result.assert_outcomes(passed=1)
     assert temp_perfetto_file_path.exists()
 
@@ -71,7 +71,7 @@ def test_given_multiple_threads__then_multiple_distinct_tids_are_reported(
             thread.start()
             thread.join()
     """)
-    pytester.runpytest_subprocess(f"--perfetto={temp_perfetto_file_path}").assert_outcomes(passed=1)
+    pytester.runpytest_inprocess(f"--perfetto={temp_perfetto_file_path}").assert_outcomes(passed=1)
     trace_file = json.load(temp_perfetto_file_path.open("r"))
     EXPECTED_DISTINCT_TID_COUNT: Final[int] = 3
 
@@ -126,7 +126,7 @@ def test_given_thread_created_in_setup__then_thread_is_recorded_and_not_ignored(
         def test_hello3(pool: ThreadPoolExecutor) -> None:
             pool.submit(quix).result()
     """)
-    pytester.runpytest_subprocess(f"--perfetto={temp_perfetto_file_path}").assert_outcomes(passed=3)
+    pytester.runpytest_inprocess(f"--perfetto={temp_perfetto_file_path}").assert_outcomes(passed=3)
     trace_file = json.load(temp_perfetto_file_path.open("r"))
 
     EXPECTED_EVENT_COUNT: Final[int] = 3
