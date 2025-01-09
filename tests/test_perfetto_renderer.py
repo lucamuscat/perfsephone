@@ -82,7 +82,7 @@ def test_when_export_trace__then_pytest_stacks_are_not_included(
             while (time() - start) < 0.05:
                 print(start**4)
     """)
-    result = pytester.runpytest_subprocess(f"--perfetto={temp_perfetto_file_path}")
+    result = pytester.runpytest_inprocess(f"--perfetto={temp_perfetto_file_path}")
     result.assert_outcomes(passed=1)
 
     # In theory, the best way of querying the perfetto trace file is to use the perfetto package.
