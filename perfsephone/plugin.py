@@ -6,6 +6,7 @@ The perfsephone plugin aims to help developers profile their tests by ultimately
 import inspect
 import logging
 import time
+from enum import Enum
 from pathlib import Path
 from textwrap import dedent
 from typing import (
@@ -31,14 +32,21 @@ from perfsephone.profiler import Profiler
 from perfsephone.trace_store import ChromeTraceEventFormatJSONStore, TraceStore
 
 PERFETTO_ARG_NAME: Final[str] = "perfetto_path"
+TRACE_LEVEL_ARG_NAME: Final[str] = "'outline' or 'full'"
 logger = logging.getLogger(__name__)
 
 
+class TraceLevel(str, Enum):
+    OUTLINE = "outline"
+    FULL = "full"
+
+
 class PytestPerfettoPlugin:
-    def __init__(self, output_path: Path) -> None:
+    def __init__(self, output_path: Path, trace_level: TraceLevel) -> None:
         self.events: TraceStore = ChromeTraceEventFormatJSONStore()
         self.profiler: Profiler = Profiler()
         self.output_path: Path = output_path
+        self.trace_level: TraceLevel = trace_level
 
     @pytest.hookimpl(hookwrapper=True)
     def pytest_sessionstart(self) -> Generator[None, None, None]:
@@ -174,16 +182,33 @@ def pytest_addoption(parser: pytest.Parser) -> None:
             produced if this argument is not provided."""
         ),
     )
+
+    parser.addoption(
+        "--perfsephone_level",
+        dest=TRACE_LEVEL_ARG_NAME,
+        metavar="'outline' or 'full'",
+        choices=list(TraceLevel),
+        default=TraceLevel.FULL.value,
+        action="store",
+        help=dedent("""
+            The granularity at which Perfsephone should profile tests. The 'outline' level will only
+            show duration of each test, together with each of the tests' call stages (setup, call,
+            teardown). The 'full' level will profile every test, together with an outline.
+        """),
     )
 
 
 def pytest_configure(config: pytest.Config) -> None:
     option: Union[Path, Notset] = config.getoption(PERFETTO_ARG_NAME)
+    trace_level: Union[TraceLevel, Notset] = config.getoption(TRACE_LEVEL_ARG_NAME)
 
     if isinstance(option, Notset):
         return
 
+    if isinstance(trace_level, Notset):
+        trace_level = TraceLevel.FULL
+
     if isinstance(option, Path) and option.is_dir():
         raise ValueError("The provided path must not be a directory")
 
-    config.pluginmanager.register(PytestPerfettoPlugin(option))
+    config.pluginmanager.register(PytestPerfettoPlugin(output_path=option, trace_level=trace_level))

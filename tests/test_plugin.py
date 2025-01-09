@@ -1,8 +1,10 @@
 import json
 from pathlib import Path
-from typing import Final
+from typing import Final, Tuple
 
 import pytest
+
+from perfsephone.plugin import TRACE_LEVEL_ARG_NAME, TraceLevel
 
 
 def test_given_perfetto_arg_trace_files_are_written(
@@ -24,6 +26,30 @@ def test_given_perfetto_arg_with_no_value__then_trace_files_are_written_in_curre
     """)
     pytester.runpytest_inprocess("--perfetto").assert_outcomes(passed=1)
     assert len(list(Path().glob("perfsephone-*.json"))) == 1
+
+
+@pytest.mark.parametrize(
+    "args",
+    [("--perfetto",)]
+    + [("--perfetto", f"--perfsephone_level={level.value}") for level in list(TraceLevel)]
+    + [(f"--perfsephone_level={level.value}",) for level in list(TraceLevel)],
+)
+def test_given_perfsephone_args__then_no_error(
+    pytester: pytest.Pytester, args: Tuple[str, ...]
+) -> None:
+    pytester.makepyfile("""
+        def test_hello(): ...
+    """)
+    pytester.runpytest_inprocess(*args).assert_outcomes(passed=1)
+
+
+def test_when_perfsephone_level_not_provided__then_default_value_is_full(
+    pytester: pytest.Pytester,
+) -> None:
+    config = pytester.parseconfig("--perfetto")
+    expected_value = TraceLevel.FULL
+    actual_value = config.getoption(TRACE_LEVEL_ARG_NAME)
+    assert expected_value == actual_value
 
 
 def test_given_non_serializable_params__when_dump_trace__then_file_is_written(
