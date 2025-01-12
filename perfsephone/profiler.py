@@ -1,3 +1,4 @@
+import abc
 import logging
 import threading
 from contextlib import contextmanager
@@ -13,6 +14,28 @@ from perfsephone.perfetto_renderer import render
 from perfsephone.trace_store import ChromeTraceEventFormatJSONStore, TraceStore
 
 logger = logging.getLogger(__name__)
+
+
+class Profiler(abc.ABC):
+    @contextmanager
+    @abc.abstractmethod
+    def __call__(
+        self,
+        *,
+        root_frame_name: str,
+        is_async: bool,
+        args: Optional[Dict[str, Union[str, Sequence[str]]]] = None,
+    ) -> Generator[TraceStore, None, None]:
+        """
+        Args:
+            * root_frame_name: str - The name of the first frame to be emitted into the TraceStore
+            * is_async: bool - Whether the target being profiled is an async function.
+            * args: Optional[Dict[str, Union[str, Sequence[str]]]] = None - Miscellaneous arguments
+            that become embedded with the root frame (see the `args` parameter in
+            `BeginDurationEvent`)
+        """
+        yield ChromeTraceEventFormatJSONStore()
+        raise NotImplementedError
 
 
 class _ThreadProfiler:
@@ -75,7 +98,7 @@ class _ThreadProfiler:
                 self.profilers.append(self.thread_local.profiler.stop())
 
 
-class PyinstrumentProfiler:
+class PyinstrumentProfiler(Profiler):
     def __init__(self) -> None:
         self.thread_profiler = _ThreadProfiler()
         self.max_tid: int = 0

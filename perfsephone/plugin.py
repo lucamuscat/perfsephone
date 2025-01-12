@@ -28,7 +28,7 @@ from perfsephone import (
     InstantScope,
     Timestamp,
 )
-from perfsephone.profiler import Profiler
+from perfsephone.profiler import PyinstrumentProfiler
 from perfsephone.trace_store import ChromeTraceEventFormatJSONStore, TraceStore
 
 PERFETTO_ARG_NAME: Final[str] = "perfetto_path"
@@ -44,7 +44,7 @@ class TraceLevel(str, Enum):
 class PytestPerfettoPlugin:
     def __init__(self, output_path: Path, trace_level: TraceLevel) -> None:
         self.events: TraceStore = ChromeTraceEventFormatJSONStore()
-        self.profiler: Profiler = Profiler()
+        self.profiler: PyinstrumentProfiler = PyinstrumentProfiler()
         self.output_path: Path = output_path
         self.trace_level: TraceLevel = trace_level
 
