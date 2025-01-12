@@ -79,7 +79,7 @@ def test_when_export_trace__then_pytest_stacks_are_not_included(
         from time import time
         def test_do_work() -> None:
             start = time()
-            while (time() - start) < 0.05:
+            while (time() - start) < 0.005:
                 print(start**4)
     """)
     result = pytester.runpytest_inprocess(f"--perfetto={temp_perfetto_file_path}")
