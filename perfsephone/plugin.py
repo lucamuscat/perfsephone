@@ -206,7 +206,7 @@ def pytest_configure(config: pytest.Config) -> None:
     option: Union[Path, Notset] = config.getoption(PERFETTO_ARG_NAME)
     trace_level: Union[TraceLevel, Notset] = config.getoption(TRACE_LEVEL_ARG_NAME)
 
-    if isinstance(option, Notset):
+    if isinstance(option, Notset) or option is None:
         return
 
     if isinstance(trace_level, Notset):

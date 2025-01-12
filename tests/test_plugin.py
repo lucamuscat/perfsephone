@@ -167,3 +167,23 @@ def test_given_thread_created_in_setup__then_thread_is_recorded_and_not_ignored(
     assert all(event["tid"] == EXPECTED_THREAD_POOL_TID for event in events), (
         "because the thread pool was expected to use the same thread for all submissions"
     )
+
+
+def test_given_outline_mode__then_test_is_not_profiled(
+    pytester: pytest.Pytester, temp_perfetto_file_path: Path
+) -> None:
+    pytester.makepyfile("""
+    from time import sleep
+
+    def test_hello():
+        def foobar():
+            sleep(0.003)
+        foobar()
+    """)
+    pytester.runpytest_inprocess(
+        f"--perfetto={temp_perfetto_file_path}",
+        f"--perfsephone_level={TraceLevel.OUTLINE.value}",
+    ).assert_outcomes(passed=1)
+
+    actual_events = json.load(temp_perfetto_file_path.open("r"))
+    assert len([event for event in actual_events if event.get("name", "") == "foobar"]) == 0
