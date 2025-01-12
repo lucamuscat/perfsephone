@@ -172,7 +172,6 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--perfetto",
         dest=PERFETTO_ARG_NAME,
-        metavar="output file path or nothing",
         action="store",
         type=Path,
         const=Path(f"perfsephone-{int(time.time())}.json"),
@@ -184,23 +183,23 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
     parser.addoption(
-        "--perfsephone_level",
+        "--outline",
         dest=TRACE_LEVEL_ARG_NAME,
-        metavar="'outline' or 'full'",
-        choices=list(TraceLevel),
-        default=TraceLevel.FULL.value,
-        action="store",
+        action="store_true",
+        default=False,
         help=dedent("""
             The granularity at which Perfsephone should profile tests. The 'outline' level will only
             show duration of each test, together with each of the tests' call stages (setup, call,
-            teardown). The 'full' level will profile every test, together with an outline.
+            teardown).
         """),
     )
 
 
 def pytest_configure(config: pytest.Config) -> None:
     option: Union[Path, Notset] = config.getoption(PERFETTO_ARG_NAME)
-    trace_level: Union[TraceLevel, Notset] = config.getoption(TRACE_LEVEL_ARG_NAME)
+    trace_level: TraceLevel = (
+        TraceLevel.OUTLINE if config.getoption(TRACE_LEVEL_ARG_NAME) else TraceLevel.FULL
+    )
 
     if isinstance(option, Notset) or option is None:
         return

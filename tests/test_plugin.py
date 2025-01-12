@@ -4,7 +4,7 @@ from typing import Final, Tuple
 
 import pytest
 
-from perfsephone.plugin import TRACE_LEVEL_ARG_NAME, TraceLevel
+from perfsephone.plugin import TRACE_LEVEL_ARG_NAME
 
 
 def test_given_perfetto_arg_trace_files_are_written(
@@ -28,12 +28,7 @@ def test_given_perfetto_arg_with_no_value__then_trace_files_are_written_in_curre
     assert len(list(Path().glob("perfsephone-*.json"))) == 1
 
 
-@pytest.mark.parametrize(
-    "args",
-    [("--perfetto",)]
-    + [("--perfetto", f"--perfsephone_level={level.value}") for level in list(TraceLevel)]
-    + [(f"--perfsephone_level={level.value}",) for level in list(TraceLevel)],
-)
+@pytest.mark.parametrize("args", [("--perfetto",), ("--perfetto", "--outline"), ("--outline",)])
 def test_given_perfsephone_args__then_no_error(
     pytester: pytest.Pytester, args: Tuple[str, ...]
 ) -> None:
@@ -47,7 +42,7 @@ def test_when_perfsephone_level_not_provided__then_default_value_is_full(
     pytester: pytest.Pytester,
 ) -> None:
     config = pytester.parseconfig("--perfetto")
-    expected_value = TraceLevel.FULL
+    expected_value = False
     actual_value = config.getoption(TRACE_LEVEL_ARG_NAME)
     assert expected_value == actual_value
 
@@ -183,7 +178,7 @@ def test_given_outline_mode__then_test_is_not_profiled(
     """)
     pytester.runpytest_inprocess(
         f"--perfetto={temp_perfetto_file_path}",
-        f"--perfsephone_level={TraceLevel.OUTLINE.value}",
+        "--outline",
     ).assert_outcomes(passed=1)
 
     actual_events = json.load(temp_perfetto_file_path.open("r"))
