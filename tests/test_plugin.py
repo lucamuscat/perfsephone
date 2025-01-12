@@ -1,8 +1,10 @@
 import json
 from pathlib import Path
-from typing import Final
+from typing import Final, Tuple
 
 import pytest
+
+from perfsephone.plugin import TRACE_LEVEL_ARG_NAME
 
 
 def test_given_perfetto_arg_trace_files_are_written(
@@ -24,6 +26,25 @@ def test_given_perfetto_arg_with_no_value__then_trace_files_are_written_in_curre
     """)
     pytester.runpytest_inprocess("--perfetto").assert_outcomes(passed=1)
     assert len(list(Path().glob("perfsephone-*.json"))) == 1
+
+
+@pytest.mark.parametrize("args", [("--perfetto",), ("--perfetto", "--outline"), ("--outline",)])
+def test_given_perfsephone_args__then_no_error(
+    pytester: pytest.Pytester, args: Tuple[str, ...]
+) -> None:
+    pytester.makepyfile("""
+        def test_hello(): ...
+    """)
+    pytester.runpytest_inprocess(*args).assert_outcomes(passed=1)
+
+
+def test_when_perfsephone_level_not_provided__then_default_value_is_full(
+    pytester: pytest.Pytester,
+) -> None:
+    config = pytester.parseconfig("--perfetto")
+    expected_value = False
+    actual_value = config.getoption(TRACE_LEVEL_ARG_NAME)
+    assert expected_value == actual_value
 
 
 def test_given_non_serializable_params__when_dump_trace__then_file_is_written(
@@ -134,10 +155,31 @@ def test_given_thread_created_in_setup__then_thread_is_recorded_and_not_ignored(
 
     events = list(filter(lambda event: event.get("name") in ["foo", "bar", "quix"], trace_file))
 
-    assert (
-        len({event["name"] for event in events}) == EXPECTED_EVENT_COUNT
-    ), "because three functions were executed in the thread pool thread"
+    assert len({event["name"] for event in events}) == EXPECTED_EVENT_COUNT, (
+        "because three functions were executed in the thread pool thread"
+    )
 
-    assert all(
-        event["tid"] == EXPECTED_THREAD_POOL_TID for event in events
-    ), "because the thread pool was expected to use the same thread for all submissions"
+    assert all(event["tid"] == EXPECTED_THREAD_POOL_TID for event in events), (
+        "because the thread pool was expected to use the same thread for all submissions"
+    )
+
+
+# TODO: Test that the outline actually includes the setup, call, and teardown events.
+def test_given_outline_mode__then_test_is_not_profiled(
+    pytester: pytest.Pytester, temp_perfetto_file_path: Path
+) -> None:
+    pytester.makepyfile("""
+    from time import sleep
+
+    def test_hello():
+        def foobar():
+            sleep(0.003)
+        foobar()
+    """)
+    pytester.runpytest_inprocess(
+        f"--perfetto={temp_perfetto_file_path}",
+        "--outline",
+    ).assert_outcomes(passed=1)
+
+    actual_events = json.load(temp_perfetto_file_path.open("r"))
+    assert len([event for event in actual_events if event.get("name", "") == "foobar"]) == 0
