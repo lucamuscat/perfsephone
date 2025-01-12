@@ -48,6 +48,7 @@ class PytestPerfettoPlugin:
             PyinstrumentProfiler() if trace_level == TraceLevel.FULL else OutlineProfiler()
         )
         self.trace_level: TraceLevel = trace_level
+        self.output_path = output_path
 
     @pytest.hookimpl(hookwrapper=True)
     def pytest_sessionstart(self) -> Generator[None, None, None]:
@@ -63,7 +64,7 @@ class PytestPerfettoPlugin:
         yield
 
     @pytest.hookimpl(hookwrapper=True)
-    def pytest_sessionfinish(self, session: pytest.Session) -> Generator[None, None, None]:
+    def pytest_sessionfinish(self) -> Generator[None, None, None]:
         # Called after whole test run finished, right before returning the exit status to the system
         # https://docs.pytest.org/en/7.1.x/reference/reference.html#pytest.hookspec.pytest_sessionfinish
         # TODO: Add this method to the abstract class
@@ -71,9 +72,7 @@ class PytestPerfettoPlugin:
             self.profiler.unregister_thread_profiler(self.events)
 
         self.events.add_end_event()
-        perfetto_path: Union[Path, Notset] = session.config.getoption("perfetto_path")
-        if isinstance(perfetto_path, Path):
-            self.events.dump(path=perfetto_path)
+        self.events.dump(path=self.output_path)
         yield
 
     @pytest.hookimpl(hookwrapper=True)
