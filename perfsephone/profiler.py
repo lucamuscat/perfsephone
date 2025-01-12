@@ -38,6 +38,25 @@ class Profiler(abc.ABC):
         raise NotImplementedError
 
 
+class OutlineProfiler(Profiler):
+    @contextmanager
+    def __call__(
+        self,
+        *,
+        root_frame_name: str,
+        is_async: bool,  # noqa: ARG002
+        args: Optional[Dict[str, Union[str, Sequence[str]]]] = None,
+    ) -> Generator[TraceStore, None, None]:
+        # TODO: Create a TraceStore factory that gets passed around in the init variables of each of
+        # these profiler classes
+        result: TraceStore = ChromeTraceEventFormatJSONStore()
+        result.add_begin_event(
+            name=root_frame_name, category=Category("test"), tid=1, pid=1, args=args
+        )
+        yield result
+        result.add_end_event()
+
+
 class _ThreadProfiler:
     def __init__(self) -> None:
         self.thread_local = threading.local()
@@ -132,19 +151,11 @@ class PyinstrumentProfiler(Profiler):
         if args is None:
             args = {}
 
-        result: TraceStore = ChromeTraceEventFormatJSONStore()
-
-        result.add_begin_event(
-            name=root_frame_name,
-            category=Category("test"),
-            args=args,
-        )
-
         profiler_async_mode = "enabled" if is_async else "disabled"
-        with pyinstrument.Profiler(async_mode=profiler_async_mode) as profile:
+        with OutlineProfiler()(
+            root_frame_name=root_frame_name, is_async=is_async, args=args
+        ) as result, pyinstrument.Profiler(async_mode=profiler_async_mode) as profile:
             yield result
-
-        result.add_end_event()
 
         result.add_begin_event(
             name="[pytest-perfetto] Dumping frames",
