@@ -28,7 +28,7 @@ from perfsephone import (
     InstantScope,
     Timestamp,
 )
-from perfsephone.profiler import PyinstrumentProfiler
+from perfsephone.profiler import OutlineProfiler, Profiler, PyinstrumentProfiler
 from perfsephone.trace_store import ChromeTraceEventFormatJSONStore, TraceStore
 
 PERFETTO_ARG_NAME: Final[str] = "perfetto_path"
@@ -44,15 +44,18 @@ class TraceLevel(str, Enum):
 class PytestPerfettoPlugin:
     def __init__(self, output_path: Path, trace_level: TraceLevel) -> None:
         self.events: TraceStore = ChromeTraceEventFormatJSONStore()
-        self.profiler: PyinstrumentProfiler = PyinstrumentProfiler()
-        self.output_path: Path = output_path
+        self.profiler: Profiler = (
+            PyinstrumentProfiler() if trace_level == TraceLevel.FULL else OutlineProfiler()
+        )
         self.trace_level: TraceLevel = trace_level
 
     @pytest.hookimpl(hookwrapper=True)
     def pytest_sessionstart(self) -> Generator[None, None, None]:
         # Called after the `Session` object has been created and before performing collection and
         # entering the run test loop.
-        self.profiler.register_thread_profiler()
+        # TODO: Add this method to the abstract class
+        if isinstance(self.profiler, PyinstrumentProfiler):
+            self.profiler.register_thread_profiler()
         self.events.add_begin_event(
             name="pytest session",
             category=Category("pytest"),
@@ -63,7 +66,9 @@ class PytestPerfettoPlugin:
     def pytest_sessionfinish(self, session: pytest.Session) -> Generator[None, None, None]:
         # Called after whole test run finished, right before returning the exit status to the system
         # https://docs.pytest.org/en/7.1.x/reference/reference.html#pytest.hookspec.pytest_sessionfinish
-        self.profiler.unregister_thread_profiler(self.events)
+        # TODO: Add this method to the abstract class
+        if isinstance(self.profiler, PyinstrumentProfiler):
+            self.profiler.unregister_thread_profiler(self.events)
 
         self.events.add_end_event()
         perfetto_path: Union[Path, Notset] = session.config.getoption("perfetto_path")
