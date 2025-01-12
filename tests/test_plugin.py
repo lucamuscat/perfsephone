@@ -169,6 +169,7 @@ def test_given_thread_created_in_setup__then_thread_is_recorded_and_not_ignored(
     )
 
 
+# TODO: Test that the outline actually includes the setup, call, and teardown events.
 def test_given_outline_mode__then_test_is_not_profiled(
     pytester: pytest.Pytester, temp_perfetto_file_path: Path
 ) -> None:
