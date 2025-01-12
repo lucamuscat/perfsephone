@@ -160,10 +160,10 @@ def test_given_thread_created_in_setup__then_thread_is_recorded_and_not_ignored(
 
     events = list(filter(lambda event: event.get("name") in ["foo", "bar", "quix"], trace_file))
 
-    assert (
-        len({event["name"] for event in events}) == EXPECTED_EVENT_COUNT
-    ), "because three functions were executed in the thread pool thread"
+    assert len({event["name"] for event in events}) == EXPECTED_EVENT_COUNT, (
+        "because three functions were executed in the thread pool thread"
+    )
 
-    assert all(
-        event["tid"] == EXPECTED_THREAD_POOL_TID for event in events
-    ), "because the thread pool was expected to use the same thread for all submissions"
+    assert all(event["tid"] == EXPECTED_THREAD_POOL_TID for event in events), (
+        "because the thread pool was expected to use the same thread for all submissions"
+    )

@@ -159,8 +159,8 @@ class PytestPerfettoPlugin:
         args = {
             "argnames": fixturedef.argnames,
             "baseid": fixturedef.baseid,
-            # `fixturedef.params` are not guaranteed to serializable via json.dump(s), as a param
-            # can be a sequence of objects of any type.
+            # `fixturedef.params` are not guaranteed to serializable via json.dump(s), as a
+            # param can be a sequence of objects of any type.
             "params": list(map(str, fixturedef.params)) if fixturedef.params else "",
             "scope": fixturedef.scope,
         }

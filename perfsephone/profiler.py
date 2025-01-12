@@ -111,9 +111,9 @@ class _ThreadProfiler:
             # When there are no more active invocations of `Thread.run()`, this implies that the
             # target of the thread being profiled has finished executing.
             if self.thread_local.run_stack_depth == 0:
-                assert hasattr(
-                    self.thread_local, "profiler"
-                ), "because a profiler must have been started"
+                assert hasattr(self.thread_local, "profiler"), (
+                    "because a profiler must have been started"
+                )
                 self.profilers.append(self.thread_local.profiler.stop())
 
 
