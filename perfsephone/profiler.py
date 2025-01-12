@@ -75,7 +75,7 @@ class _ThreadProfiler:
                 self.profilers.append(self.thread_local.profiler.stop())
 
 
-class Profiler:
+class PyinstrumentProfiler:
     def __init__(self) -> None:
         self.thread_profiler = _ThreadProfiler()
         self.max_tid: int = 0
