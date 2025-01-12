@@ -54,9 +54,7 @@ class PytestPerfettoPlugin:
     def pytest_sessionstart(self) -> Generator[None, None, None]:
         # Called after the `Session` object has been created and before performing collection and
         # entering the run test loop.
-        # TODO: Add this method to the abstract class
-        if isinstance(self.profiler, PyinstrumentProfiler):
-            self.profiler.register_thread_profiler()
+        self.profiler.register_thread_profiler()
         self.events.add_begin_event(
             name="pytest session",
             category=Category("pytest"),
@@ -67,9 +65,7 @@ class PytestPerfettoPlugin:
     def pytest_sessionfinish(self) -> Generator[None, None, None]:
         # Called after whole test run finished, right before returning the exit status to the system
         # https://docs.pytest.org/en/7.1.x/reference/reference.html#pytest.hookspec.pytest_sessionfinish
-        # TODO: Add this method to the abstract class
-        if isinstance(self.profiler, PyinstrumentProfiler):
-            self.profiler.unregister_thread_profiler(self.events)
+        self.profiler.unregister_thread_profiler(self.events)
 
         self.events.add_end_event()
         self.events.dump(path=self.output_path)

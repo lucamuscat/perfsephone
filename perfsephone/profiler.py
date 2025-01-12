@@ -37,6 +37,12 @@ class Profiler(abc.ABC):
         yield ChromeTraceEventFormatJSONStore()
         raise NotImplementedError
 
+    def register_thread_profiler(self) -> None:  # noqa: B027
+        pass
+
+    def unregister_thread_profiler(self, trace_store: TraceStore) -> None:  # noqa: B027
+        pass
+
 
 class OutlineProfiler(Profiler):
     @contextmanager
