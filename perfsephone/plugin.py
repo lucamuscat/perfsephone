@@ -32,7 +32,7 @@ from perfsephone.profiler import OutlineProfiler, Profiler, PyinstrumentProfiler
 from perfsephone.trace_store import ChromeTraceEventFormatJSONStore, TraceStore
 
 PERFETTO_ARG_NAME: Final[str] = "perfetto_path"
-TRACE_LEVEL_ARG_NAME: Final[str] = "'outline' or 'full'"
+TRACE_LEVEL_ARG_NAME: Final[str] = "trace_level"
 logger = logging.getLogger(__name__)
 
 
