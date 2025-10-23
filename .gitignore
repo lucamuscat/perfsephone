@@ -1,2 +1,4 @@
 *cache*
 **/.venv
+*.egg-info
+*.tox
