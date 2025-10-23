@@ -30,8 +30,7 @@ test teardown, and collection time;
   cannot be optimized without optimizing pytest itself.
 
 # Development
-Perfsephone's dependencies is managed using [*poetry*](https://python-poetry.org/docs/#installation).
+Perfsephone's dependencies is managed using [*uv*](https://docs.astral.sh/uv/).
 
 ## Tests
-In order to run the project's unit tests & linting suite, run the following command:
-`poetry run tox -p`
+In order to run the project's unit tests & linting suite, run the following command: `uvx tox -p`
