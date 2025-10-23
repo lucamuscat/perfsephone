@@ -157,7 +157,7 @@ class PyinstrumentProfiler(Profiler):
         if args is None:
             args = {}
 
-        profiler_async_mode = "enabled" if is_async else "disabled"
+        profiler_async_mode: Literal["enabled", "disabled"] = "enabled" if is_async else "disabled"
         with OutlineProfiler()(
             root_frame_name=root_frame_name, is_async=is_async, args=args
         ) as result, pyinstrument.Profiler(async_mode=profiler_async_mode) as profile:
