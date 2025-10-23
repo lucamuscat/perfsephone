@@ -1,33 +1,25 @@
-[tool.poetry]
+[project]
 name = "perfsephone"
 version = "0.1.0"
 description = ""
-authors = ["Luca Muscat <lucamuscat@gmail.com>"]
 readme = "README.md"
+requires-python = ">=3.8"
+authors = [{name = "Luca Muscat", email = "lucamuscat@gmail.com"}]
 
-[project]
-classifiers = [
-    "Framework :: Pytest"
+dependencies = [
+    "pyinstrument==5.0.0",
 ]
-name = "perfsephone"
 
-[tool.poetry.plugins."pytest11"]
-"perfsephone" = "perfsephone.plugin"
+[dependency-groups]
+dev = [
+    "mypy>=1.14.1",
+    "pytest>=8.3.5",
+    "ruff>=0.13.3",
+    "tox>=4.25.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.8"
-pytest = "^8.3.3"
-pyinstrument = "^5.0.0"
-
-[tool.poetry.group.dev.dependencies]
-ruff = "^0.9"
-mypy = "^1.13.0"
-pytest = "^8.3.3"
-tox = "^4.23.2"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.uv]
+package = true
 
 [tool.ruff]
 target-version = "py38"
@@ -55,6 +47,10 @@ select = [
 ignore = [
     "S101"
 ]
-
 [tool.mypy]
 strict = true
+[project.entry-points."pytest11"]
+"perfsephone" = "perfsephone.plugin"
+
+[tool.setuptools]
+packages = ["perfsephone"]
