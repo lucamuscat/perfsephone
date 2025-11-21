@@ -149,9 +149,10 @@ class PytestPerfettoPlugin:
 
     # ===== Reporting hooks =====
     @pytest.hookimpl(hookwrapper=True)
-    def pytest_fixture_setup(
-        self, fixturedef: pytest.FixtureDef[Any]
-    ) -> Generator[None, None, None]:
+    def pytest_fixture_setup(self, fixturedef: Any) -> Generator[None, None, None]:
+        # I purposely opted not to use `pytest.FixtureDef[T]` here, as the type was not under
+        # pytest's public API in pytest 7, causing errors when trying to run perfsephone in pytest
+        # 7.
         args = {
             "argnames": fixturedef.argnames,
             "baseid": fixturedef.baseid,
