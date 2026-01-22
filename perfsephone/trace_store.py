@@ -110,7 +110,7 @@ class ChromeTraceEventFormatJSONStore(TraceStore):
             result = [asdict(event) for event in self.events]
             for event in result:
                 # Python's time.time() produces timestamps using a seconds as its granularity,
-                # whilst perfetto uses a miceosecond granularity.
+                # whilst perfetto uses a microsecond granularity.
                 event["ts"] /= 1e-6
 
             json.dump(result, file)
