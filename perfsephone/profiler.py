@@ -82,7 +82,9 @@ class _ThreadProfiler:
         threading.Thread = self.original_thread_class  # type: ignore
 
     def __call__(self, runnable: Callable[[], None]) -> Any:
-        self.thread_local.profiler = pyinstrument.Profiler()
+        # Disable async mode to prevent the runtime error where multiple profilers are running.
+        # TODO: Find a way to opt out of async mode only when a profiler is already running.
+        self.thread_local.profiler = pyinstrument.Profiler(async_mode="disabled")
         self.thread_local.profiler.start()
 
         runnable()
