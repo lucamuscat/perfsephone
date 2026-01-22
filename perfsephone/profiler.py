@@ -1,10 +1,8 @@
 import abc
-import logging
 import threading
 from contextlib import contextmanager
 from itertools import chain
-from types import FrameType
-from typing import Any, Dict, Generator, List, Literal, Optional, Sequence, Union
+from typing import Any, Callable, Dict, Generator, List, Literal, Optional, Sequence, Union
 
 import pyinstrument
 import pyinstrument.session
@@ -12,8 +10,6 @@ import pyinstrument.session
 from perfsephone import Category
 from perfsephone.perfetto_renderer import render
 from perfsephone.trace_store import ChromeTraceEventFormatJSONStore, TraceStore
-
-logger = logging.getLogger(__name__)
 
 
 class Profiler(abc.ABC):
@@ -67,60 +63,31 @@ class _ThreadProfiler:
     def __init__(self) -> None:
         self.thread_local = threading.local()
         self.profilers: List[pyinstrument.session.Session] = []
+        self.original_thread_class = threading.Thread
 
     def drain(self) -> Generator[pyinstrument.session.Session, None, None]:
         while self.profilers:
             yield self.profilers.pop(0)
 
     def register(self) -> None:
-        # We use `threading.settrace`, as opposed to `threading.setprofile`, as
-        # `pyinstrument.Profiler().start()` calls `threading.setprofile` under the hood, overriding
-        # our profiling function.
-        #
-        # `threading.settrace` & `threading.setprofile` provides a rather convoluted mechanism of
-        # starting a pyinstrument profiler as soon as a thread starts executing its `run()` method,
-        # & stopping said profiler once the `run()` method finishes.
-        threading.settrace(self.__call__)  # type: ignore
+        profiler = self
+
+        class ProfiledThread(threading.Thread):
+            def run(self) -> None:
+                profiler(super().run)
+
+        threading.Thread = ProfiledThread  # type: ignore
 
     def unregister(self) -> None:
-        threading.settrace(None)  # type: ignore
+        threading.Thread = self.original_thread_class  # type: ignore
 
-    def __call__(
-        self,
-        frame: FrameType,
-        event: Literal["call", "line", "return", "exception", "opcode"],
-        _args: Any,
-    ) -> Any:
-        """This method should only be used with `threading.settrace()`."""
-        frame.f_trace_lines = False
+    def __call__(self, runnable: Callable[[], None]) -> Any:
+        self.thread_local.profiler = pyinstrument.Profiler()
+        self.thread_local.profiler.start()
 
-        is_frame_from_thread_run: bool = (
-            frame.f_code.co_name == "run" and frame.f_code.co_filename == threading.__file__
-        )
+        runnable()
 
-        # Detect when `Thread.run()` is called
-        if event == "call" and is_frame_from_thread_run:
-            # If this is the first time `Thread.run()` is being called on this thread, start the
-            # profiler.
-            if getattr(self.thread_local, "run_stack_depth", 0) == 0:
-                profiler = pyinstrument.Profiler(async_mode="disabled")
-                self.thread_local.profiler = profiler
-                self.thread_local.run_stack_depth = 0
-                profiler.start()
-            # Keep track of the number of active calls of `Thread.run()`.
-            self.thread_local.run_stack_depth += 1
-            return self.__call__
-
-        # Detect when `Threading.run()` returns.
-        if event == "return" and is_frame_from_thread_run:
-            self.thread_local.run_stack_depth -= 1
-            # When there are no more active invocations of `Thread.run()`, this implies that the
-            # target of the thread being profiled has finished executing.
-            if self.thread_local.run_stack_depth == 0:
-                assert hasattr(self.thread_local, "profiler"), (
-                    "because a profiler must have been started"
-                )
-                self.profilers.append(self.thread_local.profiler.stop())
+        self.profilers.append(self.thread_local.profiler.stop())
 
 
 class PyinstrumentProfiler(Profiler):
