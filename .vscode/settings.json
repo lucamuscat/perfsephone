@@ -24,6 +24,8 @@
         "**/.DS_Store": true,
         "**/Thumbs.db": true,
         "**/.venv": true,
+        "**/build": true,
+        "**/dist": true,
         "**/*cache*": true
     }
 }
