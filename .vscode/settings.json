@@ -7,7 +7,7 @@
         },
         "editor.defaultFormatter": "charliermarsh.ruff"
     },
-    "python.defaultInterpreterPath": "${workspaceFolder]/.venv/bin/python",
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
     "ruff.path": ["${workspaceFolder}/.venv/bin/ruff"],
     "mypy-type-checker.path": ["${workspaceFolder}/.venv/bin/mypy"],
     "mypy-type-checker.importStrategy": "fromEnvironment",
